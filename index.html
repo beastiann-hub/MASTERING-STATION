@@ -1512,10 +1512,10 @@ document.addEventListener('mousedown', (e) => {
     state.moduleParams[modId][ctrlId] = newVal;
     updateKnobVisual(modId, ctrlId, newVal);
     
-    // Update live preview if enabled
-    if (state.isLivePreview && state.isPlaying) {
-      updateLiveChain();
-    }
+  // Update live preview if enabled
+  if (state.isLivePreview && state.isPlaying && state.chain.inputGain) {
+    updateLiveChain();
+  }
   };
 
   const onUp = () => {
@@ -1610,9 +1610,14 @@ function playPreviewLoop() {
     const checkTime = () => {
       if (!state.isPlaying) return;
       const elapsed = state.audioCtx.currentTime - state.startTime;
-      if (elapsed >= state.previewStartTime + state.previewDuration) {
+      const currentPos = state.pauseOffset + elapsed;
+      
+      if (currentPos >= state.previewStartTime + state.previewDuration) {
         stopPlayback();
-        setTimeout(() => playPreviewLoop(), 50);
+        setTimeout(() => {
+          state.pauseOffset = state.previewStartTime;
+          startPlayback();
+        }, 50);
         return;
       }
       requestAnimationFrame(checkTime);
@@ -1711,7 +1716,18 @@ async function handleFile(file) {
   document.getElementById('outputSection').style.display = 'flex';
   
   // Initialize preview regions
-  setPreviewRegion('intro');
+  if (typeof setPreviewRegion === 'function') {
+    setPreviewRegion('intro');
+  } else {
+    // Set initial state manually
+    state.previewRegion = 'intro';
+    state.previewStartTime = 0;
+    setTimeout(() => {
+      document.querySelectorAll('.preview-quick-btn').forEach((btn, idx) => {
+        btn.classList.toggle('active', idx === 0);
+      });
+    }, 100);
+  }
   
   updateMasterButton();
   runAnalysis();
@@ -1908,14 +1924,16 @@ function createProcessingChain() {
   state.analyserNode.fftSize = 2048;
 
   // Connect chain
-  state.chain.inputGain
-    .connect(state.chain.eq.low)
-  ;
-  const eqChain = eqKeys.reduce((prev, key) => {
-    if (prev) prev.connect(state.chain.eq[key]);
-    return state.chain.eq[key];
-  });
-  eqChain.connect(state.chain.compressor);
+  state.chain.inputGain.connect(state.chain.eq.low);
+  
+  // Chain EQ nodes together
+  state.chain.eq.low.connect(state.chain.eq.lowMid);
+  state.chain.eq.lowMid.connect(state.chain.eq.mid);
+  state.chain.eq.mid.connect(state.chain.eq.highMid);
+  state.chain.eq.highMid.connect(state.chain.eq.high);
+  
+  // Connect last EQ to compressor
+  state.chain.eq.high.connect(state.chain.compressor);
   state.chain.compressor.connect(state.chain.makeupGain);
   state.chain.makeupGain.connect(state.chain.limiter);
   state.chain.limiter.connect(state.chain.outputGain);
@@ -1987,9 +2005,8 @@ function startPlayback() {
   const destination = state.isBypassed ? ctx.destination : state.chain.inputGain;
   state.sourceNode.connect(destination);
   
-  // Use preview offset if in preview mode
-  const startOffset = state.isPreviewMode && state.previewStartTime > 0 ? 
-    state.previewStartTime + state.pauseOffset : state.pauseOffset;
+  // Use preview offset if in preview mode - but don't double the offset
+  const startOffset = state.pauseOffset;
   
   state.sourceNode.start(0, startOffset);
   state.startTime = ctx.currentTime - state.pauseOffset;
@@ -2265,10 +2282,14 @@ async function renderOffline() {
   // Connect
   source.connect(inputGain);
   inputGain.connect(eqNodes.low);
-  eqKeys.reduce((prev, key) => {
-    if (prev !== eqNodes[key]) prev.connect(eqNodes[key]);
-    return eqNodes[key];
-  }, eqNodes.low);
+  
+  // Chain EQ nodes together  
+  eqNodes.low.connect(eqNodes.lowMid);
+  eqNodes.lowMid.connect(eqNodes.mid);
+  eqNodes.mid.connect(eqNodes.highMid);
+  eqNodes.highMid.connect(eqNodes.high);
+  
+  // Connect last EQ to compressor
   eqNodes.high.connect(comp);
   comp.connect(makeupGain);
   makeupGain.connect(limiter);
