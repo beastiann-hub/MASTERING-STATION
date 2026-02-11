@@ -282,6 +282,11 @@ body {
   width: 0%;
   transition: width 0.1s linear;
 }
+.transport-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
 .transport-toggle {
   display: flex;
   align-items: center;
@@ -315,6 +320,82 @@ body {
 .transport-toggle.active .dot {
   background: var(--accent);
   box-shadow: 0 0 6px var(--accent-glow);
+}
+
+/* ============ PREVIEW SECTIONS ============ */
+.preview-section {
+  background: var(--bg-module);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.preview-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.preview-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.preview-section-title .preview-icon {
+  color: var(--accent);
+}
+.preview-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.preview-btn {
+  padding: 6px 12px;
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.15s;
+  letter-spacing: 0.5px;
+}
+.preview-btn:hover {
+  color: var(--text-secondary);
+  border-color: var(--border-active);
+}
+.preview-btn.active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.preview-quick-select {
+  display: flex;
+  gap: 4px;
+}
+.preview-quick-btn {
+  padding: 4px 8px;
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.preview-quick-btn:hover {
+  color: var(--text-secondary);
+  border-color: var(--border-active);
+}
+.preview-quick-btn.active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 /* ============ WORKSPACE ============ */
@@ -873,6 +954,12 @@ input[type="range"]::-webkit-slider-thumb {
   .controls-row { gap: 12px; }
   .output-section { flex-wrap: wrap; }
   .output-stats { gap: 16px; }
+  .transport { flex-wrap: wrap; gap: 8px; }
+  .transport-controls { gap: 4px; }
+  .transport-toggle { padding: 4px 8px; font-size: 10px; }
+  .preview-section-header { flex-direction: column; align-items: stretch; gap: 8px; }
+  .preview-controls { justify-content: center; }
+  .preview-quick-select { flex: 1; }
 }
 </style>
 </head>
@@ -910,14 +997,42 @@ input[type="range"]::-webkit-slider-thumb {
     <div class="transport-progress" id="progressBar" onclick="seekAudio(event)">
       <div class="transport-progress-fill" id="progressFill"></div>
     </div>
-    <button class="transport-toggle" id="bypassToggle" onclick="toggleBypass()">
-      <span class="dot"></span> A/B
-    </button>
+    <div class="transport-controls">
+      <button class="transport-toggle" id="bypassToggle" onclick="toggleBypass()">
+        <span class="dot"></span> A/B
+      </button>
+      <button class="transport-toggle" id="loopToggle" onclick="toggleLoop()">
+        <span class="dot"></span> LOOP
+      </button>
+      <button class="transport-toggle active" id="previewToggle" onclick="togglePreview()">
+        <span class="dot"></span> PREVIEW
+      </button>
+    </div>
   </div>
 
   <!-- QUICK MASTER WORKSPACE -->
   <div class="workspace active" id="quickWorkspace">
     <div class="quick-master">
+
+      <!-- Preview Section -->
+      <div class="preview-section" id="quickPreviewSection">
+        <div class="preview-section-header">
+          <div class="preview-section-title">
+            <span class="preview-icon">🎧</span> Real-time Preview
+          </div>
+          <div class="preview-controls">
+            <div class="preview-quick-select">
+              <button class="preview-quick-btn active" onclick="setPreviewRegion('intro')" title="Preview first 10s">INTRO</button>
+              <button class="preview-quick-btn" onclick="setPreviewRegion('chorus')" title="Preview middle section">CHORUS</button>
+              <button class="preview-quick-btn" onclick="setPreviewRegion('outro')" title="Preview last 10s">OUTRO</button>
+            </div>
+            <button class="preview-btn" onclick="playPreviewLoop()" id="quickPreviewBtn">▶ PREVIEW</button>
+          </div>
+        </div>
+        <div style="font-size: 11px; color: var(--text-dim); font-family: 'JetBrains Mono', monospace;">
+          <span id="previewInfo">Select presets below and click PREVIEW to hear changes instantly</span>
+        </div>
+      </div>
 
       <!-- Analysis -->
       <div class="analysis-panel">
@@ -972,7 +1087,7 @@ input[type="range"]::-webkit-slider-thumb {
       <!-- Master Button -->
       <div class="master-actions">
         <button class="btn-master btn-master-primary" id="quickMasterBtn" onclick="runQuickMaster()" disabled>
-          ◈ MASTER IT
+          ◈ RENDER MASTER
         </button>
         <button class="btn-master btn-master-secondary" onclick="runAnalysis()">↻ RE-ANALYZE</button>
       </div>
@@ -981,6 +1096,21 @@ input[type="range"]::-webkit-slider-thumb {
 
   <!-- DETAILED WORKSPACE -->
   <div class="workspace" id="detailedWorkspace">
+    <!-- Detailed Preview Section -->
+    <div class="preview-section" id="detailedPreviewSection">
+      <div class="preview-section-header">
+        <div class="preview-section-title">
+          <span class="preview-icon">🎛️</span> Live Preview
+        </div>
+        <div class="preview-controls">
+          <button class="preview-btn" onclick="toggleLivePreview()" id="livePreviewBtn">🔇 LIVE</button>
+          <button class="preview-btn" onclick="playPreviewLoop()" id="detailedPreviewBtn">▶ PREVIEW</button>
+        </div>
+      </div>
+      <div style="font-size: 11px; color: var(--text-dim); font-family: 'JetBrains Mono', monospace;">
+        <span id="livePreviewInfo">Adjust controls below to hear changes in real-time</span>
+      </div>
+    </div>
     <div class="detailed-master" id="detailedModules"></div>
   </div>
 
@@ -1044,6 +1174,13 @@ const state = {
   analyserNode: null,
   outAnalyserL: null,
   outAnalyserR: null,
+  // Preview state
+  isPreviewMode: true,
+  isLivePreview: false,
+  isLooping: false,
+  previewRegion: 'intro', // intro, chorus, outro
+  previewStartTime: 0,
+  previewDuration: 10, // seconds
   // Processing chain nodes
   chain: {
     inputGain: null,
@@ -1148,6 +1285,11 @@ function selectPreset(type, id) {
     el.classList.toggle('selected', el.dataset.preset === id);
   });
   updateMasterButton();
+  
+  // Auto-preview in quick mode if preset selection changes
+  if (state.mode === 'quick' && state.audioBuffer && state.isPreviewMode) {
+    applyQuickPreview();
+  }
 }
 
 function updateMasterButton() {
@@ -1320,6 +1462,11 @@ function applyModulePreset(modId, presetName) {
     state.moduleParams[modId][ctrlId] = value;
     updateKnobVisual(modId, ctrlId, value);
   });
+  
+  // Update live preview if enabled
+  if (state.isLivePreview && state.isPlaying) {
+    updateLiveChain();
+  }
 }
 
 function updateKnobVisual(modId, ctrlId, value) {
@@ -1364,7 +1511,11 @@ document.addEventListener('mousedown', (e) => {
     newVal = Math.max(min, Math.min(max, newVal));
     state.moduleParams[modId][ctrlId] = newVal;
     updateKnobVisual(modId, ctrlId, newVal);
-    updateLiveChain();
+    
+    // Update live preview if enabled
+    if (state.isLivePreview && state.isPlaying) {
+      updateLiveChain();
+    }
   };
 
   const onUp = () => {
@@ -1375,6 +1526,150 @@ document.addEventListener('mousedown', (e) => {
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
 });
+
+// ---- Preview Functions ----
+function togglePreview() {
+  state.isPreviewMode = !state.isPreviewMode;
+  const btn = document.getElementById('previewToggle');
+  btn.classList.toggle('active', state.isPreviewMode);
+  
+  const infoEl = document.getElementById('previewInfo');
+  if (infoEl) {
+    infoEl.textContent = state.isPreviewMode ? 
+      'Preview mode ON - changes apply in real-time' :
+      'Preview mode OFF - use MASTER IT for final processing';
+  }
+}
+
+function toggleLivePreview() {
+  state.isLivePreview = !state.isLivePreview;
+  const btn = document.getElementById('livePreviewBtn');
+  btn.classList.toggle('active', state.isLivePreview);
+  btn.textContent = state.isLivePreview ? '🔊 LIVE' : '🔇 LIVE';
+  
+  const infoEl = document.getElementById('livePreviewInfo');
+  if (infoEl) {
+    infoEl.textContent = state.isLivePreview ? 
+      'Live preview ON - hear changes instantly' :
+      'Live preview OFF - use PREVIEW button to hear changes';
+  }
+}
+
+function toggleLoop() {
+  state.isLooping = !state.isLooping;
+  const btn = document.getElementById('loopToggle');
+  btn.classList.toggle('active', state.isLooping);
+}
+
+function setPreviewRegion(region) {
+  state.previewRegion = region;
+  document.querySelectorAll('.preview-quick-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.onclick.toString().includes(`'${region}'`));
+  });
+  
+  if (!state.audioBuffer) return;
+  
+  const duration = state.audioBuffer.duration;
+  switch(region) {
+    case 'intro':
+      state.previewStartTime = 0;
+      break;
+    case 'chorus':
+      state.previewStartTime = Math.max(0, duration * 0.4);
+      break;
+    case 'outro':
+      state.previewStartTime = Math.max(0, duration - state.previewDuration);
+      break;
+  }
+  
+  // If currently playing preview, restart in new region
+  if (state.isPlaying && state.isPreviewMode) {
+    stopPlayback();
+    setTimeout(() => playPreviewLoop(), 100);
+  }
+}
+
+function playPreviewLoop() {
+  if (!state.audioBuffer) return;
+  
+  // Apply quick preview settings first
+  if (state.mode === 'quick') {
+    applyQuickPreview();
+  }
+  
+  stopPlayback();
+  
+  // Set playback position to preview region
+  state.pauseOffset = state.previewStartTime;
+  updateTimeDisplay();
+  
+  startPlayback();
+  
+  // Auto-loop if enabled
+  if (state.isLooping) {
+    const checkTime = () => {
+      if (!state.isPlaying) return;
+      const elapsed = state.audioCtx.currentTime - state.startTime;
+      if (elapsed >= state.previewStartTime + state.previewDuration) {
+        stopPlayback();
+        setTimeout(() => playPreviewLoop(), 50);
+        return;
+      }
+      requestAnimationFrame(checkTime);
+    };
+    requestAnimationFrame(checkTime);
+  }
+}
+
+function applyQuickPreview() {
+  if (!state.selectedPreset) return;
+  
+  const genrePreset = GENRE_PRESETS.find(p => p.id === state.selectedPreset);
+  const charPreset = CHARACTER_PRESETS.find(p => p.id === state.selectedCharacter);
+  const platPreset = PLATFORM_PRESETS.find(p => p.id === state.selectedPlatform);
+  
+  if (!genrePreset) return;
+  
+  // Apply genre preset to modules
+  const eqMap = { low: 'lowGain', lowMid: 'lowMidGain', mid: 'midGain', highMid: 'highMidGain', high: 'highGain' };
+  Object.entries(genrePreset.eq).forEach(([key, val]) => {
+    let adjusted = val;
+    if (charPreset) {
+      if (charPreset.id === 'warm') adjusted += (key === 'low' || key === 'lowMid') ? 1 : (key === 'high' ? -1.5 : 0);
+      if (charPreset.id === 'bright') adjusted += key === 'high' || key === 'highMid' ? 1.5 : 0;
+      if (charPreset.id === 'punchy') adjusted += key === 'lowMid' ? 2 : (key === 'mid' ? 1 : 0);
+      if (charPreset.id === 'wide') adjusted += key === 'mid' ? -1 : 0;
+      if (charPreset.id === 'dark') adjusted += key === 'low' ? 2 : (key === 'high' ? -3 : 0);
+    }
+    state.moduleParams.eq[eqMap[key]] = Math.max(-12, Math.min(12, adjusted));
+  });
+  
+  // Apply compressor settings
+  Object.entries(genrePreset.comp).forEach(([key, val]) => {
+    state.moduleParams.comp[key] = val;
+  });
+  
+  // Apply stereo settings
+  state.moduleParams.stereo.width = 100 + genrePreset.stereo * 100;
+  
+  // Apply limiter settings
+  Object.entries(genrePreset.limiter).forEach(([key, val]) => {
+    state.moduleParams.limiter[key] = val;
+  });
+  
+  // Platform-specific adjustments
+  if (platPreset) {
+    const targetLUFS = platPreset.target;
+    const currentLUFS = state.analysisData?.lufs || -16;
+    const gainAdjust = targetLUFS - currentLUFS;
+    state.moduleParams.limiter.inputGain = Math.max(0, Math.min(12, gainAdjust));
+  }
+  
+  // Update live chain if playing
+  if (state.isPlaying) {
+    updateLiveChain();
+  }
+}
 
 // ---- File Handling ----
 function setupDropZone() {
@@ -1414,6 +1709,10 @@ async function handleFile(file) {
 
   document.getElementById('transport').style.display = 'flex';
   document.getElementById('outputSection').style.display = 'flex';
+  
+  // Initialize preview regions
+  setPreviewRegion('intro');
+  
   updateMasterButton();
   runAnalysis();
 }
@@ -1423,6 +1722,8 @@ function removeFile() {
   state.audioBuffer = null;
   state.masterBuffer = null;
   state.fileName = '';
+  state.previewStartTime = 0;
+  
   const dz = document.getElementById('dropZone');
   dz.classList.remove('has-file');
   dz.innerHTML = `
@@ -1623,7 +1924,7 @@ function createProcessingChain() {
 }
 
 function updateLiveChain() {
-  if (!state.chain.inputGain) return;
+  if (!state.chain.inputGain || !state.audioCtx) return;
   const p = state.moduleParams;
 
   // EQ
@@ -1681,8 +1982,16 @@ function startPlayback() {
 
   state.sourceNode = ctx.createBufferSource();
   state.sourceNode.buffer = state.audioBuffer;
-  state.sourceNode.connect(state.isBypassed ? ctx.destination : state.chain.inputGain);
-  state.sourceNode.start(0, state.pauseOffset);
+  
+  // Connect based on bypass and preview settings
+  const destination = state.isBypassed ? ctx.destination : state.chain.inputGain;
+  state.sourceNode.connect(destination);
+  
+  // Use preview offset if in preview mode
+  const startOffset = state.isPreviewMode && state.previewStartTime > 0 ? 
+    state.previewStartTime + state.pauseOffset : state.pauseOffset;
+  
+  state.sourceNode.start(0, startOffset);
   state.startTime = ctx.currentTime - state.pauseOffset;
   state.isPlaying = true;
 
@@ -1735,7 +2044,8 @@ function toggleBypass() {
 
   if (state.isPlaying && state.sourceNode) {
     state.sourceNode.disconnect();
-    state.sourceNode.connect(state.isBypassed ? state.audioCtx.destination : state.chain.inputGain);
+    const destination = state.isBypassed ? state.audioCtx.destination : state.chain.inputGain;
+    state.sourceNode.connect(destination);
   }
 }
 
